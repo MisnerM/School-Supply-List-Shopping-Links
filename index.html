@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supply List → Shop Links</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --chalkboard:#1F3B2F;
+    --chalkboard-dark:#152A21;
+    --ink:#2B2B25;
+    --pencil-yellow:#F4B731;
+    --pen-red:#B23A2E;
+    --rule-blue:#5E7A8C;
+    --paper:#EFE9D8;
+    --paper-line:rgba(43,43,37,0.07);
+    --card:#FBF8EF;
+    --border:#D8D0B8;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:'Work Sans',sans-serif;
+    color:var(--ink);
+    background-color:var(--paper);
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size:22px 22px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+  a{color:inherit;}
+  .header{
+    background:var(--chalkboard);
+    color:var(--paper);
+    border-bottom:6px solid var(--pencil-yellow);
+    padding:18px 24px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .header h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:22px;
+    margin:0;
+    letter-spacing:.01em;
+  }
+  .header p{
+    margin:4px 0 0;
+    font-size:13px;
+    color:#CFE0D6;
+    max-width:46ch;
+  }
+  .header-actions{display:flex;gap:10px;flex-wrap:wrap;}
+  button, .btn{
+    font-family:'Work Sans',sans-serif;
+    font-weight:600;
+    font-size:13px;
+    border:1.5px solid var(--pencil-yellow);
+    background:transparent;
+    color:var(--paper);
+    padding:9px 14px;
+    border-radius:7px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  button:hover, .btn:hover{background:var(--pencil-yellow);color:var(--chalkboard-dark);}
+  button:focus-visible, .btn:focus-visible, a:focus-visible, select:focus-visible{
+    outline:3px solid var(--pencil-yellow);
+    outline-offset:2px;
+  }
+  .btn-solid{background:var(--pencil-yellow);color:var(--chalkboard-dark);}
+  .btn-solid:hover{background:#fff;border-color:#fff;}
+  #file-input{display:none;}
+
+  main{
+    flex:1;
+    display:flex;
+    min-height:0;
+    padding:20px;
+    gap:20px;
+  }
+  .list-pane{
+    flex:1 1 58%;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .preview-pane{
+    flex:1 1 42%;
+    min-width:260px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:22px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .preview-pane h2{
+    font-family:'Fraunces',serif;
+    font-size:16px;
+    margin:0;
+  }
+  .preview-pane .note{
+    font-size:13px;
+    line-height:1.55;
+    color:#55564C;
+  }
+  .preview-pane .status{
+    margin-top:auto;
+    border-top:1px dashed var(--border);
+    padding-top:14px;
+    font-size:13px;
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--rule-blue);
+  }
+  .preview-pane .status a{text-decoration:underline;color:var(--pen-red);}
+
+  /* Empty / dropzone state */
+  .dropzone{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    padding:40px 20px;
+    text-align:center;
+    border:2px dashed var(--border);
+    margin:16px;
+    border-radius:8px;
+  }
+  .dropzone.drag{border-color:var(--pen-red);background:#fff7e9;}
+  .dropzone p{margin:0;font-size:14px;color:#55564C;max-width:34ch;}
+  .dropzone .or{font-size:12px;color:#8a8a78;letter-spacing:.08em;text-transform:uppercase;}
+  .dropzone .btn{
+    border-color:var(--pen-red);color:var(--pen-red);
+  }
+  .dropzone .btn:hover{background:var(--pen-red);color:var(--card);}
+
+  /* Workspace (after a list loads) */
+  .toolbar{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    flex-wrap:wrap;
+    padding:14px 18px;
+    border-bottom:1px solid var(--border);
+    font-size:13px;
+  }
+  .toolbar label{display:flex;align-items:center;gap:6px;color:#55564C;}
+  .toolbar select{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    padding:5px 7px;
+    border:1px solid var(--border);
+    border-radius:5px;
+    background:#fff;
+  }
+  .toolbar .spacer{flex:1;}
+  .toolbar .reset{font-size:12px;text-decoration:underline;color:var(--rule-blue);cursor:pointer;background:none;border:none;padding:0;}
+
+  .table-scroll{flex:1;overflow:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+  thead th{
+    position:sticky;top:0;
+    background:var(--card);
+    border-bottom:2px solid var(--ink);
+    text-align:left;
+    font-family:'Work Sans',sans-serif;
+    font-weight:600;
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:#55564C;
+    padding:10px 12px;
+  }
+  tbody td{
+    padding:9px 12px;
+    border-bottom:1px solid var(--border);
+    font-family:'IBM Plex Mono',monospace;
+    vertical-align:middle;
+  }
+  tbody tr:hover{background:#fff7e9;}
+  .col-num{color:#8a8a78;width:30px;}
+  .col-qty{width:48px;color:#55564C;}
+  .col-links{white-space:nowrap;}
+  .col-item{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .stamp{
+    display:inline-block;
+    min-width:30px;
+    text-align:center;
+    margin-right:6px;
+    padding:3px 7px;
+    border:1.5px solid var(--pen-red);
+    border-radius:10px 12px 9px 11px;
+    color:var(--pen-red);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:.04em;
+    text-decoration:none;
+    text-transform:uppercase;
+    background:transparent;
+  }
+  .stamp:hover{background:var(--pen-red);color:var(--card);}
+  .stamp.muted{opacity:.35;pointer-events:none;}
+
+  .download-row{
+    padding:14px 18px;
+    border-top:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .download-row .btn{border-color:var(--pen-red);color:var(--pen-red);}
+  .download-row .btn:hover{background:var(--pen-red);color:var(--card);}
+  .download-row .hint{font-size:12px;color:#8a8a78;}
+
+  .hidden{display:none !important;}
+
+  @media (max-width:880px){
+    main{flex-direction:column;}
+    .preview-pane{order:-1;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>✎ Supply List → Shop Links</h1>
+    <p>Upload a school supply spreadsheet. Each row gets a one-click search link for Amazon, Walmart, and Target — open one, find the closest match, add it to your cart.</p>
+  </div>
+  <div class="header-actions">
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+    <button id="upload-btn">Upload list</button>
+    <button id="sample-btn">Try a sample list</button>
+  </div>
+</div>
+
+<main>
+  <section class="list-pane">
+    <div id="dropzone" class="dropzone">
+      <p><strong>Drag a .xlsx or .csv file here</strong><br>or use the “Upload list” button above.</p>
+      <p class="or">— or —</p>
+      <button class="btn" id="sample-btn-2">Try a sample list</button>
+    </div>
+
+    <div id="workspace" class="hidden" style="display:flex;flex-direction:column;height:100%;min-height:0;">
+      <div class="toolbar">
+        <label>Item column
+          <select id="item-col"></select>
+        </label>
+        <label>Quantity column
+          <select id="qty-col"></select>
+        </label>
+        <div class="spacer"></div>
+        <button class="reset" id="reset-btn">Upload a different file</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-num" style="width:34px;">#</th>
+              <th class="col-item" style="width:auto;">Item</th>
+              <th class="col-qty" style="width:52px;">Qty</th>
+              <th class="col-links" style="width:140px;">Open on</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div class="download-row">
+        <button class="btn" id="download-btn">Download list with links ⬇</button>
+        <span class="hint">Adds Amazon / Walmart / Target columns as clickable links to a copy of your file.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="preview-pane">
+    <h2>Preview</h2>
+    <p class="note">
+      Clicking a stamp opens that store's search results in a second window, positioned next to this one.
+      Amazon, Walmart, and Target don't allow their pages to be embedded directly on other sites (a standard
+      anti-clickjacking rule), so a synced window is the closest thing to a true side-by-side view.
+    </p>
+    <p class="note">
+      These are search links, not guaranteed exact products — pick the closest match on the store's results page,
+      then hit “Add to cart” there as usual.
+    </p>
+    <div class="status" id="status">Nothing opened yet. Click a stamp on the left to get started.</div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const RETAILERS = [
+    { key:'amazon',  label:'Amazon',  abbr:'AMZ', build:q => 'https://www.amazon.com/s?k=' + encodeURIComponent(q) },
+    { key:'walmart', label:'Walmart', abbr:'WMT', build:q => 'https://www.walmart.com/search?q=' + encodeURIComponent(q) },
+    { key:'target',  label:'Target',  abbr:'TGT', build:q => 'https://www.target.com/s?searchTerm=' + encodeURIComponent(q) }
+  ];
+
+  const ITEM_HINTS = ['item','supply','supplies','description','product','name'];
+  const QTY_HINTS  = ['qty','quantity','count','amount'];
+
+  const SAMPLE_ROWS = [
+    ['Item','Qty'],
+    ['Crayola 24-count crayons', 2],
+    ["Elmer's glue sticks, 6-pack", 1],
+    ['Wide-ruled spiral notebook', 3],
+    ['#2 pencils (box of 12)', 2],
+    ['Fiskars kid scissors, blunt tip', 1],
+    ['2-pocket plastic folder, any color (no prongs)', 4],
+    ['Box of facial tissues', 2],
+    ['Pink eraser', 1],
+    ['1" white view binder', 1],
+    ['Washable markers, classic colors', 1]
+  ];
+
+  const state = { headers:[], rows:[], itemCol:0, qtyCol:-1 };
+  let previewWin = null;
+
+  const $ = sel => document.querySelector(sel);
+  const fileInput   = $('#file-input');
+  const dropzone    = $('#dropzone');
+  const workspace   = $('#workspace');
+  const tableBody   = $('#table-body');
+  const itemColSel  = $('#item-col');
+  const qtyColSel   = $('#qty-col');
+  const statusBox   = $('#status');
+
+  function colLabel(i, header){
+    if (header && String(header).trim() !== '') return String(header);
+    let n = i + 1, s = '';
+    while (n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+    return 'Column ' + s;
+  }
+
+  function cleanQuery(raw){
+    let s = String(raw == null ? '' : raw);
+    s = s.replace(/\([^)]*\)/g, ' ');
+    s = s.replace(/\b(or similar|or equivalent|optional|no mechanical pencils?)\b/gi, ' ');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+  }
+
+  function guessColumn(headers, hints, fallback){
+    const lower = headers.map(h => String(h || '').toLowerCase());
+    for (const hint of hints){
+      const idx = lower.findIndex(h => h.includes(hint));
+      if (idx !== -1) return idx;
+    }
+    return fallback;
+  }
+
+  function setStatus(html){ statusBox.innerHTML = html; }
+
+  function openInPreview(url, label){
+    const isNarrow = window.innerWidth < 900;
+    let win = null;
+    if (!isNarrow){
+      const paneRect = $('.list-pane').getBoundingClientRect();
+      const left = Math.round(window.screenX + paneRect.width + 16);
+      const top = Math.round(window.screenY + 90);
+      const width = Math.max(480, Math.round(window.outerWidth - paneRect.width - 32));
+      const height = Math.round(window.outerHeight - 130);
+      win = window.open(url, 'supplyListPreview', 'left=' + left + ',top=' + top + ',width=' + width + ',height=' + height);
+    }
+    if (!win) win = window.open(url, 'supplyListPreview');
+    if (win){
+      try { win.focus(); } catch(e){}
+      previewWin = win;
+      setStatus('Showing <strong>' + label + '</strong> in the side window →');
+    } else {
+      setStatus('Pop-up blocked. <a href="' + url + '" target="_blank">Open ' + label + ' manually</a>.');
+    }
+  }
+
+  function renderMappingControls(){
+    itemColSel.innerHTML = '';
+    qtyColSel.innerHTML = '';
+    state.headers.forEach((h, i) => {
+      const opt1 = document.createElement('option');
+      opt1.value = i; opt1.textContent = colLabel(i, h);
+      itemColSel.appendChild(opt1);
+    });
+    const noneOpt = document.createElement('option');
+    noneOpt.value = -1; noneOpt.textContent = '(none)';
+    qtyColSel.appendChild(noneOpt);
+    state.headers.forEach((h, i) => {
+      const opt2 = document.createElement('option');
+      opt2.value = i; opt2.textContent = colLabel(i, h);
+      qtyColSel.appendChild(opt2);
+    });
+    itemColSel.value = state.itemCol;
+    qtyColSel.value = state.qtyCol;
+  }
+
+  function renderTable(){
+    tableBody.innerHTML = '';
+    state.rows.forEach((row, i) => {
+      const rawItem = row[state.itemCol];
+      const query = cleanQuery(rawItem);
+      const qty = state.qtyCol >= 0 ? row[state.qtyCol] : '';
+      const tr = document.createElement('tr');
+
+      const tdNum = document.createElement('td');
+      tdNum.className = 'col-num'; tdNum.textContent = (i + 1);
+
+      const tdItem = document.createElement('td');
+      tdItem.className = 'col-item'; tdItem.title = String(rawItem || '');
+      tdItem.textContent = rawItem || '(blank)';
+
+      const tdQty = document.createElement('td');
+      tdQty.className = 'col-qty'; tdQty.textContent = qty;
+
+      const tdLinks = document.createElement('td');
+      tdLinks.className = 'col-links';
+      RETAILERS.forEach(r => {
+        const a = document.createElement('a');
+        a.className = 'stamp' + (query ? '' : ' muted');
+        a.href = query ? r.build(query) : '#';
+        a.target = 'supplyListPreview';
+        a.textContent = r.abbr;
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (!query) return;
+          openInPreview(r.build(query), query + ' — ' + r.label);
+        });
+        tdLinks.appendChild(a);
+      });
+
+      tr.appendChild(tdNum); tr.appendChild(tdItem); tr.appendChild(tdQty); tr.appendChild(tdLinks);
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function processRows(aoa){
+    const headers = (aoa[0] || []).map(h => (h === undefined ? '' : h));
+    const body = aoa.slice(1).filter(r => r.some(c => String(c == null ? '' : c).trim() !== ''));
+    state.headers = headers;
+    state.rows = body;
+    state.itemCol = guessColumn(headers, ITEM_HINTS, 0);
+    state.qtyCol = guessColumn(headers, QTY_HINTS, -1);
+    renderMappingControls();
+    renderTable();
+    dropzone.classList.add('hidden');
+    workspace.classList.remove('hidden');
+  }
+
+  function handleFile(file){
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type:'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        processRows(aoa);
+      } catch (err){
+        alert('Could not read that file. Try saving it as .xlsx or .csv and uploading again.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function downloadWithLinks(){
+    const headers = state.headers.slice();
+    RETAILERS.forEach(r => headers.push(r.label));
+    const outRows = [headers];
+    state.rows.forEach(row => {
+      const newRow = row.slice();
+      while (newRow.length < state.headers.length) newRow.push('');
+      const query = cleanQuery(row[state.itemCol]);
+      RETAILERS.forEach(r => newRow.push(query ? ('Search ' + r.label) : ''));
+      outRows.push(newRow);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(outRows);
+    state.rows.forEach((row, i) => {
+      const query = cleanQuery(row[state.itemCol]);
+      if (!query) return;
+      RETAILERS.forEach((r, j) => {
+        const colIdx = state.headers.length + j;
+        const addr = XLSX.utils.encode_cell({ r: i + 1, c: colIdx });
+        if (ws[addr]) ws[addr].l = { Target: r.build(query), Tooltip: 'Open on ' + r.label };
+      });
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Supply List');
+    XLSX.writeFile(wb, 'supply-list-with-links.xlsx');
+  }
+
+  // wiring
+  $('#upload-btn').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+  ['#sample-btn', '#sample-btn-2'].forEach(sel => $(sel).addEventListener('click', () => processRows(SAMPLE_ROWS)));
+  $('#reset-btn').addEventListener('click', () => {
+    workspace.classList.add('hidden');
+    dropzone.classList.remove('hidden');
+    fileInput.value = '';
+  });
+  $('#download-btn').addEventListener('click', downloadWithLinks);
+  itemColSel.addEventListener('change', () => { state.itemCol = parseInt(itemColSel.value, 10); renderTable(); });
+  qtyColSel.addEventListener('change', () => { state.qtyCol = parseInt(qtyColSel.value, 10); renderTable(); });
+
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+})();
+</script>
+</body>
+</html>
